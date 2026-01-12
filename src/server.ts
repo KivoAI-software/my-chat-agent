@@ -13,17 +13,9 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
-// import { env } from "cloudflare:workers";
-
-const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -36,9 +28,19 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
+    // Get Gemini API key from environment
+    const apiKey = this.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      throw new Error("GOOGLE_API_KEY is not set in environment variables");
+    }
+
+    // Create Google AI SDK instance
+    const google = createGoogleGenerativeAI({
+      apiKey: apiKey,
+    });
+
+    // Use Gemini 2.0 Flash model
+    const model = google('models/gemini-2.0-flash-exp');
 
     // Collect all tools, including MCP tools
     const allTools = {
@@ -76,7 +78,7 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<
             typeof allTools
           >,
-          stopWhen: stepCountIs(10)
+          maxSteps: 20
         });
 
         writer.merge(result.toUIMessageStream());
@@ -113,16 +115,18 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+      const hasGoogleKey = !!env.GOOGLE_API_KEY;
       return Response.json({
-        success: hasOpenAIKey
+        success: hasGoogleKey
       });
     }
-    if (!process.env.OPENAI_API_KEY) {
+    
+    if (!env.GOOGLE_API_KEY) {
       console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
+        "GOOGLE_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret put GOOGLE_API_KEY` to upload it to production"
       );
     }
+    
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
