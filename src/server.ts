@@ -16,7 +16,6 @@ import {
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
-
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
