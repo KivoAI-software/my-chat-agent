@@ -70,9 +70,12 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  // Force agent recreation on every render by passing a unique key
+  const [agentKey, setAgentKey] = useState(() => Date.now());
+  
   const agent = useAgent({
     agent: "chat",
-    name: "room-test-id"
+    name: `room-test-id-${agentKey}`
   });
 
   const [agentInput, setAgentInput] = useState("");
