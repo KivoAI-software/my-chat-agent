@@ -71,7 +71,8 @@ export default function Chat() {
   };
 
   const agent = useAgent({
-    agent: "chat"
+    agent: "chat",
+    name: "room-test-id"
   });
 
   const [agentInput, setAgentInput] = useState("");
