@@ -17,6 +17,13 @@
 	"assets": {
 		"directory": "public"
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "dbdev",
+			"database_id": "fd766c0d-72ac-4bc4-a3ff-d36df70246f8"
+		}
+	],
 	"durable_objects": {
 		"bindings": [
 			{
