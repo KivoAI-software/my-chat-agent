@@ -290,10 +290,16 @@ export class AIChatAgent<
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
     // Load messages and automatically transform them to v5 format
-    const rawMessages = this._loadMessagesFromDb();
-
-    // Automatic migration following https://jhak.im/blog/ai-sdk-migration-handling-previously-saved-messages
-    this.messages = autoTransformMessages(rawMessages);
+    // Initialize with empty messages and load asynchronously since constructor cannot await
+    this.messages = [];
+    this._loadMessagesFromDb()
+      .then((rawMessages) => {
+        // Automatic migration following https://jhak.im/blog/ai-sdk-migration-handling-previously-saved-messages
+        this.messages = autoTransformMessages(rawMessages);
+      })
+      .catch((err) => {
+        console.error("[AIChatAgent] Failed to load messages:", err);
+      });
 
     this._chatMessageAbortControllers = new Map();
 
@@ -412,12 +418,9 @@ export class AIChatAgent<
         // Handle clear chat
         if (data.type === MessageType.CF_AGENT_CHAT_CLEAR) {
           this._destroyAbortControllers();
-          this.sql`delete from cf_ai_chat_agent_messages`;
-          this.sql`delete from cf_ai_chat_stream_chunks`;
-          this.sql`delete from cf_ai_chat_stream_metadata`;
-          this._execOnD1("delete from cf_ai_chat_agent_messages");
-          this._execOnD1("delete from cf_ai_chat_stream_chunks");
-          this._execOnD1("delete from cf_ai_chat_stream_metadata");
+          await this._execOnD1("delete from cf_ai_chat_agent_messages");
+          await this._execOnD1("delete from cf_ai_chat_stream_chunks");
+          await this._execOnD1("delete from cf_ai_chat_stream_metadata");
           this._activeStreamId = null;
           this._activeRequestId = null;
           this._streamChunkIndex = 0;
@@ -449,7 +452,7 @@ export class AIChatAgent<
             this._activeRequestId &&
             this._activeRequestId === data.id
           ) {
-            this._sendStreamChunks(
+            await this._sendStreamChunks(
               connection,
               this._activeStreamId,
               this._activeRequestId
@@ -549,15 +552,8 @@ export class AIChatAgent<
    * Validates stream freshness to avoid sending stale resume notifications.
    * @internal Protected for testing purposes.
    */
-  protected _restoreActiveStream() {
-    const activeStreams = this.sql<StreamMetadata>`
-      select * from cf_ai_chat_stream_metadata 
-      where status = 'streaming' 
-      order by created_at desc 
-      limit 1
-    `;
-
-    this._execOnD1(
+  protected async _restoreActiveStream() {
+    const activeStreams = await this._execOnD1<StreamMetadata>(
       "select * from cf_ai_chat_stream_metadata where status = 'streaming' order by created_at desc limit 1"
     );
 
@@ -567,13 +563,11 @@ export class AIChatAgent<
 
       // Check if stream is stale; delete to free storage
       if (streamAge > STREAM_STALE_THRESHOLD_MS) {
-        this.sql`delete from cf_ai_chat_stream_chunks where stream_id = ${stream.id}`;
-        this.sql`delete from cf_ai_chat_stream_metadata where id = ${stream.id}`;
-        this._execOnD1(
+        await this._execOnD1(
           "delete from cf_ai_chat_stream_chunks where stream_id = ?",
           [stream.id]
         );
-        this._execOnD1(
+        await this._execOnD1(
           "delete from cf_ai_chat_stream_metadata where id = ?",
           [stream.id]
         );
@@ -587,12 +581,7 @@ export class AIChatAgent<
       this._activeRequestId = stream.request_id;
 
       // Get the last chunk index
-      const lastChunk = this.sql<{ max_index: number }>`
-        select max(chunk_index) as max_index 
-        from cf_ai_chat_stream_chunks 
-        where stream_id = ${this._activeStreamId}
-      `;
-      this._execOnD1(
+      const lastChunk = await this._execOnD1<{ max_index: number }>(
         "select max(chunk_index) as max_index from cf_ai_chat_stream_chunks where stream_id = ?",
         [this._activeStreamId]
       );
@@ -629,7 +618,7 @@ export class AIChatAgent<
    * @param streamId - The stream to replay
    * @param requestId - The original request ID
    */
-  private _sendStreamChunks(
+  private async _sendStreamChunks(
     connection: Connection,
     streamId: string,
     requestId: string
@@ -637,13 +626,7 @@ export class AIChatAgent<
     // Flush any pending chunks first to ensure we have the latest
     this._flushChunkBuffer();
 
-    const chunks = this.sql<StreamChunk>`
-      select * from cf_ai_chat_stream_chunks 
-      where stream_id = ${streamId} 
-      order by chunk_index asc
-    `;
-
-    this._execOnD1(
+    const chunks = await this._execOnD1<StreamChunk>(
       "select * from cf_ai_chat_stream_chunks where stream_id = ? order by chunk_index asc",
       [streamId]
     );
@@ -719,15 +702,13 @@ export class AIChatAgent<
       // Batch insert all chunks
       const now = Date.now();
       for (const chunk of chunks) {
-        this.sql`
-          insert into cf_ai_chat_stream_chunks (id, stream_id, body, chunk_index, created_at)
-          values (${chunk.id}, ${chunk.streamId}, ${chunk.body}, ${chunk.index}, ${now})
-        `;
-
+        // Fire-and-forget logic for buffer flushing to avoid blocking loops
         this._execOnD1(
           "insert into cf_ai_chat_stream_chunks (id, stream_id, body, chunk_index, created_at) values (?, ?, ?, ?, ?)",
           [chunk.id, chunk.streamId, chunk.body, chunk.index, now]
-        );
+        ).catch((err) => {
+          console.error("[AIChatAgent] Failed to flush chunk", err);
+        });
       }
     } finally {
       this._isFlushingChunks = false;
@@ -751,10 +732,6 @@ export class AIChatAgent<
     this._streamChunkIndex = 0;
 
     const createdAt = Date.now();
-    this.sql`
-      insert into cf_ai_chat_stream_metadata (id, request_id, status, created_at)
-      values (${streamId}, ${requestId}, 'streaming', ${createdAt})
-    `;
 
     this._execOnD1(
       "insert into cf_ai_chat_stream_metadata (id, request_id, status, created_at) values (?, ?, 'streaming', ?)",
@@ -774,11 +751,6 @@ export class AIChatAgent<
     this._flushChunkBuffer();
 
     const completedAt = Date.now();
-    this.sql`
-      update cf_ai_chat_stream_metadata 
-      set status = 'completed', completed_at = ${completedAt} 
-      where id = ${streamId}
-    `;
 
     this._execOnD1(
       "update cf_ai_chat_stream_metadata set status = 'completed', completed_at = ? where id = ?",
@@ -804,17 +776,6 @@ export class AIChatAgent<
     this._lastCleanupTime = now;
 
     const cutoff = now - CLEANUP_AGE_THRESHOLD_MS;
-    this.sql`
-      delete from cf_ai_chat_stream_chunks 
-      where stream_id in (
-        select id from cf_ai_chat_stream_metadata 
-        where status = 'completed' and completed_at < ${cutoff}
-      )
-    `;
-    this.sql`
-      delete from cf_ai_chat_stream_metadata 
-      where status = 'completed' and completed_at < ${cutoff}
-    `;
 
     this._execOnD1(
       "delete from cf_ai_chat_stream_chunks where stream_id in (select id from cf_ai_chat_stream_metadata where status = 'completed' and completed_at < ?)",
@@ -830,13 +791,13 @@ export class AIChatAgent<
     this.broadcast(JSON.stringify(message), exclude);
   }
 
-  private _loadMessagesFromDb(): ChatMessage[] {
+  private async _loadMessagesFromDb(): Promise<ChatMessage[]> {
     const rows =
-    (this._execOnD1<{
-      id: string;
-      message: string;
-      created_at: number;
-    }>("select * from cf_ai_chat_agent_messages order by created_at")) || [];
+      (await this._execOnD1<{
+        id: string;
+        message: string;
+        created_at: number;
+      }>("select * from cf_ai_chat_agent_messages order by created_at")) || [];
 
     return rows
       .map((row) => {
@@ -855,8 +816,13 @@ export class AIChatAgent<
       const url = new URL(request.url);
 
       if (url.pathname.endsWith("/get-messages")) {
-        const messages = this._loadMessagesFromDb();
-        return Response.json(messages);
+        // Ensure messages are loaded if available (or wait/reload)
+        if (!this.messages || this.messages.length === 0) {
+           const messages = await this._loadMessagesFromDb();
+           this.messages = autoTransformMessages(messages);
+           return Response.json(messages);
+        }
+        return Response.json(this.messages);
       }
 
       return super.onRequest(request);
@@ -916,20 +882,15 @@ export class AIChatAgent<
       // and if sent back in subsequent requests, cause duplicate detection.
       const sanitizedMessage = this._sanitizeMessageForPersistence(message);
       const messageToSave = this._resolveMessageForToolMerge(sanitizedMessage);
-      this.sql`
-        insert into cf_ai_chat_agent_messages (id, message)
-        values (${messageToSave.id}, ${JSON.stringify(messageToSave)})
-        on conflict(id) do update set message = excluded.message
-      `;
-
-      this._execOnD1(
+      
+      await this._execOnD1(
         "insert into cf_ai_chat_agent_messages (id, message) values (?, ?) on conflict(id) do update set message = excluded.message",
         [messageToSave.id, JSON.stringify(messageToSave)]
       );
     }
 
     // refresh in-memory messages
-    const persisted = this._loadMessagesFromDb();
+    const persisted = await this._loadMessagesFromDb();
     this.messages = autoTransformMessages(persisted);
     this._broadcastChatMessage(
       {
@@ -1282,19 +1243,13 @@ export class AIChatAgent<
         );
 
         // Persist the updated message
-        this.sql`
-          update cf_ai_chat_agent_messages 
-          set message = ${JSON.stringify(updatedMessage)}
-          where id = ${message.id}
-        `;
-
-        this._execOnD1(
+        await this._execOnD1(
           "update cf_ai_chat_agent_messages set message = ? where id = ?",
           [JSON.stringify(updatedMessage), message.id]
         );
 
         // Reload messages to update in-memory state
-        const persisted = this._loadMessagesFromDb();
+        const persisted = await this._loadMessagesFromDb();
         this.messages = autoTransformMessages(persisted);
       }
     }
@@ -2067,11 +2022,6 @@ export class AIChatAgent<
     this._flushChunkBuffer();
 
     const completedAt = Date.now();
-    this.sql`
-      update cf_ai_chat_stream_metadata 
-      set status = 'error', completed_at = ${completedAt} 
-      where id = ${streamId}
-    `;
     this._execOnD1(
       "update cf_ai_chat_stream_metadata set status = 'error', completed_at = ? where id = ?",
       [completedAt, streamId]
@@ -2137,11 +2087,8 @@ export class AIChatAgent<
     this._flushChunkBuffer();
 
     // Clean up stream tables
-    this.sql`drop table if exists cf_ai_chat_stream_chunks`;
-    this.sql`drop table if exists cf_ai_chat_stream_metadata`;
-
-    this._execOnD1("drop table if exists cf_ai_chat_stream_chunks");
-    this._execOnD1("drop table if exists cf_ai_chat_stream_metadata");
+    await this._execOnD1("drop table if exists cf_ai_chat_stream_chunks");
+    await this._execOnD1("drop table if exists cf_ai_chat_stream_metadata");
 
     // Clear active stream state
     this._activeStreamId = null;
