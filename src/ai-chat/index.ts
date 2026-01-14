@@ -272,7 +272,7 @@ export class AIChatAgent<
       // Non-SELECT: best-effort write/DDL, no return value
       if (params.length === 0) {
         await db.exec(sql).catch((err: unknown) => {
-          console.error("[AIChatAgent] D1 exec error", err);
+		      console.error("[AIChatAgent] D1 exec error", { sql, params, err });
         });
       } else {
         await db
@@ -280,11 +280,11 @@ export class AIChatAgent<
           .bind(...params)
           .run()
           .catch((err: unknown) => {
-            console.error("[AIChatAgent] D1 prepare/run error", err);
+			    console.error("[AIChatAgent] D1 prepare/run error", { sql, params, err });
           });
       }
     } catch (err: unknown) {
-      console.error("[AIChatAgent] D1 execution exception", err);
+	    console.error("[AIChatAgent] D1 execution exception", { sql, params, err });
     }
   }
 
