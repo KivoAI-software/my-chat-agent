@@ -913,7 +913,7 @@ export class AIChatAgent<
       
       await this._execOnD1(
         "insert into cf_ai_chat_agent_messages (id, message, pid, aid, vid) values (?, ?, ?, ?, ?) on conflict(id) do update set message = excluded.message",
-        [messageToSave.id, JSON.stringify(messageToSave)， this.pid, this.aid, this.vid]
+        [messageToSave.id, JSON.stringify(messageToSave), this.pid, this.aid, this.vid]
       );
     }
 
