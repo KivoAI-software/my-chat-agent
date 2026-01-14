@@ -260,7 +260,6 @@ export class AIChatAgent<
 
     try {
       const isSelect = /^\s*select/i.test(sql);
-
       if (isSelect) {
         // Query: return results
         const stmt = db.prepare(sql);
