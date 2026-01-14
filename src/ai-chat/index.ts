@@ -175,6 +175,9 @@ export class AIChatAgent<
   Env extends Cloudflare.Env = Cloudflare.Env,
   State = unknown
 > extends Agent<Env, State> {
+  protected pid: string | null = "0";
+  protected aid: string | null = "0";
+  protected vid: string | null = "0";
   /**
    * Map of message `id`s to `AbortController`s
    * useful to propagate request cancellation signals for any external calls made by the agent
@@ -307,10 +310,33 @@ export class AIChatAgent<
     this._restoreActiveStream();
     const _onConnect = this.onConnect.bind(this);
     this.onConnect = async (connection: Connection, ctx: ConnectionContext) => {
+      // Extract uid-aid-vid from WebSocket URL path
+      // Expected format: /agents/chat/uid-aid-vid or /agents/chat/pid-aid-vid
+      try {
+        const url = new URL(ctx.request.url);
+        const pathSegments = url.pathname.split('/').filter(Boolean);
+        
+        // Find the segment after 'agents/chat/'
+        const chatIndex = pathSegments.indexOf('chat');
+        if (chatIndex !== -1 && pathSegments.length > chatIndex + 1) {
+          const idsSegment = pathSegments[chatIndex + 1];
+          const ids = idsSegment.split('-');          
+          if (ids.length === 3) {
+            this.pid = ids[0] || "0";
+            this.aid = ids[1] || "0";
+            this.vid = ids[2] || "0";
+            console.log('[AIChatAgent] Extracted IDs:', { pid: this.pid, aid: this.aid, vid: this.vid });
+          }
+        }
+      } catch (error) {
+        console.error('[AIChatAgent] Failed to extract IDs from URL:', error);
+      }
+
       // Notify client about active streams that can be resumed
       if (this._activeStreamId) {
         this._notifyStreamResuming(connection);
       }
+      connection.url
       // Call consumer's onConnect
       return _onConnect(connection, ctx);
     };
@@ -318,6 +344,8 @@ export class AIChatAgent<
     // Wrap onMessage
     const _onMessage = this.onMessage.bind(this);
     this.onMessage = async (connection: Connection, message: WSMessage) => {
+
+
       // Handle AIChatAgent's internal messages first
       if (typeof message === "string") {
         let data: IncomingMessage;
@@ -418,7 +446,7 @@ export class AIChatAgent<
         // Handle clear chat
         if (data.type === MessageType.CF_AGENT_CHAT_CLEAR) {
           this._destroyAbortControllers();
-          await this._execOnD1("delete from cf_ai_chat_agent_messages");
+          await this._execOnD1("delete from cf_ai_chat_agent_messages where pid = ? and aid=? and vid=?", [this.pid, this.aid, this.vid]);          
           await this._execOnD1("delete from cf_ai_chat_stream_chunks");
           await this._execOnD1("delete from cf_ai_chat_stream_metadata");
           this._activeStreamId = null;
@@ -797,7 +825,7 @@ export class AIChatAgent<
         id: string;
         message: string;
         created_at: number;
-      }>("select * from cf_ai_chat_agent_messages order by created_at")) || [];
+      }>(`select * from cf_ai_chat_agent_messages where pid = ? and aid = ? and vid = ? order by created_at`, [this.pid, this.aid, this.vid])) || [];
 
     return rows
       .map((row) => {
@@ -884,8 +912,8 @@ export class AIChatAgent<
       const messageToSave = this._resolveMessageForToolMerge(sanitizedMessage);
       
       await this._execOnD1(
-        "insert into cf_ai_chat_agent_messages (id, message) values (?, ?) on conflict(id) do update set message = excluded.message",
-        [messageToSave.id, JSON.stringify(messageToSave)]
+        "insert into cf_ai_chat_agent_messages (id, message, pid, aid, vid) values (?, ?, ?, ?, ?) on conflict(id) do update set message = excluded.message",
+        [messageToSave.id, JSON.stringify(messageToSave)， this.pid, this.aid, this.vid]
       );
     }
 
