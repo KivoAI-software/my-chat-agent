@@ -241,19 +241,38 @@ export class AIChatAgent<
   /**
    * Mirror SQL operations executed via this.sql to the bound D1 database (env.DB).
    * This keeps the existing SQLite behavior while also executing the same SQL
-   * against the external DB. Results from D1 are ignored; this is best-effort.
+   * against the external DB.
+   *
+   * - For write operations (INSERT/UPDATE/DELETE, DDL), it behaves as "fire-and-forget":
+   *   errors are logged and not thrown.
+   * - For read operations (queries starting with SELECT), it returns the D1
+   *   query results as an array. Callers can optionally await this.
    */
-  private _execOnD1(sql: string, params: unknown[] = []): void {
-    const db = this.env.DB;
+  private async _execOnD1<T = unknown>(
+    sql: string,
+    params: unknown[] = []
+  ): Promise<T[] | undefined> {
+    const db = this.env.DB;    
     if (!db) return;
 
     try {
+      const isSelect = /^\s*select/i.test(sql);
+
+      if (isSelect) {
+        // Query: return results
+        const stmt = db.prepare(sql);
+        const query = params.length > 0 ? stmt.bind(...params) : stmt;
+        const { results } = await query.all<T>();
+        return results ?? [];
+      }
+
+      // Non-SELECT: best-effort write/DDL, no return value
       if (params.length === 0) {
-        void db.exec(sql).catch((err: unknown) => {
+        await db.exec(sql).catch((err: unknown) => {
           console.error("[AIChatAgent] D1 exec error", err);
         });
       } else {
-        void db
+        await db
           .prepare(sql)
           .bind(...params)
           .run()
