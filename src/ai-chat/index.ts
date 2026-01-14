@@ -855,7 +855,7 @@ export class AIChatAgent<
     return this._tryCatchChat(async () => {
       const url = new URL(request.url);
       this._init_room(url);
-      if (url.pathname.endsWith("/get-messages")) {        
+      if (url.pathname.endsWith("/get-messages")) {
         // Ensure messages are loaded if available (or wait/reload)
         if (!this.messages || this.messages.length === 0) {
            const messages = await this._loadMessagesFromDb();
@@ -864,7 +864,9 @@ export class AIChatAgent<
         }
         return Response.json(this.messages);
       }
-
+      if (url.pathname.endsWith("/check-active-stream")) {        
+        return Response.json({});
+      }
       return super.onRequest(request);
     });
   }

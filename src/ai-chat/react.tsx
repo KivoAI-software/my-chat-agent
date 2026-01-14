@@ -448,8 +448,31 @@ export function useAgentChat<
     };
   }, [initialMessagesCacheKey, initialMessagesPromise]);
 
+  // Check if there's an active stream before allowing WebSocket operations
+  const checkActiveStream = useCallback(async () => {
+    try {
+      const checkUrl = new URL(agentUrlString);
+      checkUrl.pathname += "/check-active-stream";
+      const response = await fetch(checkUrl.toString(), {
+        credentials: options.credentials,
+        headers: options.headers
+      });
+      return response.status === 200;
+    } catch (error) {
+      console.error("[useAgentChat] Failed to check active stream:", error);
+      return false;
+    }
+  }, [agentUrlString, options.credentials, options.headers]);
+
   const aiFetch = useCallback(
     async (request: RequestInfo | URL, options: RequestInit = {}) => {
+      // Check active stream before proceeding
+      const canProceed = await checkActiveStream();
+      if (!canProceed) {
+        console.warn("[useAgentChat] Cannot send request: no active stream or check failed");
+        throw new Error("Active stream check failed");
+      }
+
       const {
         method,
         keepalive,
@@ -578,7 +601,7 @@ export function useAgentChat<
 
       return new Response(stream);
     },
-    []
+    [checkActiveStream]
   );
 
   // Use synchronous ref updates to avoid race conditions between effect runs.
