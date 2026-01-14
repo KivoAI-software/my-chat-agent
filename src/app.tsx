@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useAgent } from "agents/react";
 import { isStaticToolUIPart } from "ai";
-import { useAgentChat } from "./ai-chat/react";
+import { useAgentChat } from "@cloudflare/ai-chat/react";
 import type { UIMessage } from "@ai-sdk/react";
 import type { tools } from "./tools";
 
@@ -31,8 +31,6 @@ import {
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
   "getWeatherInformation"
 ];
-const searchParams = new URLSearchParams(window.location.search);
-const id = searchParams.get("id");
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -74,7 +72,7 @@ export default function Chat() {
 
   const agent = useAgent({
     agent: "chat",
-    name: `room-${id ?? "default"}`
+    name: "room-test-id"
   });
 
   const [agentInput, setAgentInput] = useState("");
