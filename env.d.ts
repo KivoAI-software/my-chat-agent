@@ -9,7 +9,7 @@ declare namespace Cloudflare {
 		GOOGLE_API_KEY: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		AI: Ai;
-		DB: DB;
+		DB: D1Database;
 	}
 }
 interface Env extends Cloudflare.Env {}

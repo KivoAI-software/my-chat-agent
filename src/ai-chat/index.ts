@@ -248,12 +248,15 @@ export class AIChatAgent<
    * - For read operations (queries starting with SELECT), it returns the D1
    *   query results as an array. Callers can optionally await this.
    */
-  private async _execOnD1<T = unknown>(
+  protected async _execOnD1<T = unknown>(
     sql: string,
     params: unknown[] = []
   ): Promise<T[] | undefined> {
     const db = this.env.DB;    
-    if (!db) return;
+    if (!db) {
+      console.error("db binding not found on env");
+      return;
+    }
 
     try {
       const isSelect = /^\s*select/i.test(sql);
