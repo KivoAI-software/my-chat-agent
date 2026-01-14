@@ -311,27 +311,8 @@ export class AIChatAgent<
     const _onConnect = this.onConnect.bind(this);
     this.onConnect = async (connection: Connection, ctx: ConnectionContext) => {
       // Extract uid-aid-vid from WebSocket URL path
-      // Expected format: /agents/chat/uid-aid-vid or /agents/chat/pid-aid-vid
-      try {
-        const url = new URL(ctx.request.url);
-        const pathSegments = url.pathname.split('/').filter(Boolean);
-        
-        // Find the segment after 'agents/chat/'
-        const chatIndex = pathSegments.indexOf('chat');
-        if (chatIndex !== -1 && pathSegments.length > chatIndex + 1) {
-          const idsSegment = pathSegments[chatIndex + 1];
-          const ids = idsSegment.split('-');          
-          if (ids.length === 3) {
-            this.pid = ids[0] || "0";
-            this.aid = ids[1] || "0";
-            this.vid = ids[2] || "0";
-            console.log('[AIChatAgent] Extracted IDs:', { pid: this.pid, aid: this.aid, vid: this.vid });
-          }
-        }
-      } catch (error) {
-        console.error('[AIChatAgent] Failed to extract IDs from URL:', error);
-      }
-
+      // Expected format: /agents/chat/uid-aid-vid or /agents/chat/pid-aid-vid      
+      this._init_room(new URL(connection.url));
       // Notify client about active streams that can be resumed
       if (this._activeStreamId) {
         this._notifyStreamResuming(connection);
@@ -838,12 +819,26 @@ export class AIChatAgent<
       })
       .filter((msg): msg is ChatMessage => msg !== null);
   }
-
+  private _init_room(url: URL) {
+    if (!this.pid || this.pid === "0") {
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      const chatIndex = pathSegments.indexOf('chat');
+      if (chatIndex !== -1 && pathSegments.length > chatIndex + 1) {
+        const idsSegment = pathSegments[chatIndex + 1];
+        const ids = idsSegment.split('-');
+        if (ids.length === 3) {
+          this.pid = ids[0] || "0";
+          this.aid = ids[1] || "0";
+          this.vid = ids[2] || "0";
+        }
+      }
+    }
+  }
   override async onRequest(request: Request): Promise<Response> {
     return this._tryCatchChat(async () => {
       const url = new URL(request.url);
-
-      if (url.pathname.endsWith("/get-messages")) {
+      this._init_room(url);
+      if (url.pathname.endsWith("/get-messages")) {        
         // Ensure messages are loaded if available (or wait/reload)
         if (!this.messages || this.messages.length === 0) {
            const messages = await this._loadMessagesFromDb();
