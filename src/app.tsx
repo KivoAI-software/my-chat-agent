@@ -105,7 +105,6 @@ export default function Chat() {
   // Use the extracted room IDs to create agent connection
   // If room IDs exist, use them as the agent name, otherwise use default
   const agentName = roomId ? `${roomId.pid}-${roomId.aid}-${roomId.vid}` : "0-0-0";
-
   const agent = useAgent({
     agent: "chat",
     name: agentName
