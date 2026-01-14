@@ -31,6 +31,8 @@ import {
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
   "getWeatherInformation"
 ];
+const searchParams = new URLSearchParams(window.location.search);
+const id = searchParams.get("id");
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -72,7 +74,7 @@ export default function Chat() {
 
   const agent = useAgent({
     agent: "chat",
-    name: "room-test-id"
+    name: `room-${id ?? "default"}`
   });
 
   const [agentInput, setAgentInput] = useState("");
