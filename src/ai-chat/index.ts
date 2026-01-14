@@ -289,57 +289,6 @@ export class AIChatAgent<
 
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
-    this.sql`create table if not exists cf_ai_chat_agent_messages (
-      id text primary key,
-      message text not null,
-      created_at datetime default current_timestamp
-    )`;
-    this._execOnD1(`create table if not exists cf_ai_chat_agent_messages (
-      id text primary key,
-      message text not null,
-      created_at datetime default current_timestamp
-    )`);
-    
-    // Create tables for automatic resumable streaming
-    this.sql`create table if not exists cf_ai_chat_stream_chunks (
-      id text primary key,
-      stream_id text not null,
-      body text not null,
-      chunk_index integer not null,
-      created_at integer not null
-    )`;
-
-    this._execOnD1(`create table if not exists cf_ai_chat_stream_chunks (
-      id text primary key,
-      stream_id text not null,
-      body text not null,
-      chunk_index integer not null,
-      created_at integer not null
-    )`);
-
-    this.sql`create table if not exists cf_ai_chat_stream_metadata (
-      id text primary key,
-      request_id text not null,
-      status text not null,
-      created_at integer not null,
-      completed_at integer
-    )`;
-
-    this._execOnD1(`create table if not exists cf_ai_chat_stream_metadata (
-      id text primary key,
-      request_id text not null,
-      status text not null,
-      created_at integer not null,
-      completed_at integer
-    )`);
-
-    this.sql`create index if not exists idx_stream_chunks_stream_id 
-      on cf_ai_chat_stream_chunks(stream_id, chunk_index)`;
-
-    this._execOnD1(
-      "create index if not exists idx_stream_chunks_stream_id on cf_ai_chat_stream_chunks(stream_id, chunk_index)"
-    );
-
     // Load messages and automatically transform them to v5 format
     const rawMessages = this._loadMessagesFromDb();
 
