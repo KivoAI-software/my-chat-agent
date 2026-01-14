@@ -33,6 +33,38 @@ const toolsRequiringConfirmation: (keyof typeof tools)[] = [
 ];
 
 export default function Chat() {
+  // Extract pid, aid, vid from URL hash: #pid-aid-vid
+  const [roomId, setRoomId] = useState<{ pid: string; aid: string; vid: string } | null>(null);
+
+  useEffect(() => {
+    // Parse URL hash: #1-2-3 -> pid=1, aid=2, vid=3
+    const parseHash = () => {
+      const hash = window.location.hash.substring(1); // Remove '#'
+      
+      if (hash) {
+        const ids = hash.split('-');
+        if (ids.length >= 3) {
+          const extractedIds = {
+            pid: ids[0],
+            aid: ids[1],
+            vid: ids[2]
+          };
+          setRoomId(extractedIds);
+          console.log('[Chat] Extracted room IDs from hash:', extractedIds);
+        } else {
+          console.warn('[Chat] Invalid hash format. Expected: #pid-aid-vid');
+        }
+      }
+    };
+
+    // Parse hash on mount
+    parseHash();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', parseHash);
+    return () => window.removeEventListener('hashchange', parseHash);
+  }, []);
+
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to dark if not found
     const savedTheme = localStorage.getItem("theme");
@@ -70,9 +102,13 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  // Use the extracted room IDs to create agent connection
+  // If room IDs exist, use them as the agent name, otherwise use default
+  const agentName = roomIds ? `${roomIds.pid}-${roomIds.aid}-${roomIds.vid}` : "room-test-id";
+
   const agent = useAgent({
     agent: "chat",
-    name: "room-test-id"
+    name: agentName
   });
 
   const [agentInput, setAgentInput] = useState("");
@@ -161,6 +197,11 @@ export default function Chat() {
 
           <div className="flex-1">
             <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            {roomId && showDebug && (
+              <div className="text-xs text-neutral-500 mt-1">
+                Room: {roomId.pid}-{roomId.aid}-{roomId.vid}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mr-2">
