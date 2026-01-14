@@ -311,13 +311,20 @@ export class AIChatAgent<
     const _onConnect = this.onConnect.bind(this);
     this.onConnect = async (connection: Connection, ctx: ConnectionContext) => {
       // Extract uid-aid-vid from WebSocket URL path
-      // Expected format: /agents/chat/uid-aid-vid or /agents/chat/pid-aid-vid      
-      this._init_room(new URL(connection.url));
+      // Expected format: /agents/chat/uid-aid-vid or /agents/chat/pid-aid-vid
+      try {
+        // Use ctx.request.url which is the full URL, not connection.url
+        const url = new URL(ctx.request.url);
+        this._init_room(url);
+      } catch (error) {
+        console.error('[AIChatAgent] Failed to extract IDs from WebSocket URL:', error);
+      }
+
       // Notify client about active streams that can be resumed
       if (this._activeStreamId) {
         this._notifyStreamResuming(connection);
       }
-      connection.url
+      
       // Call consumer's onConnect
       return _onConnect(connection, ctx);
     };
