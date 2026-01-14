@@ -178,6 +178,7 @@ export class AIChatAgent<
   protected pid: string | null = "0";
   protected aid: string | null = "0";
   protected vid: string | null = "0";
+  protected prompt: string | null = null;
   /**
    * Map of message `id`s to `AbortController`s
    * useful to propagate request cancellation signals for any external calls made by the agent
@@ -289,7 +290,16 @@ export class AIChatAgent<
 	    console.error("[AIChatAgent] D1 execution exception", { sql, params, err });
     }
   }
-
+  protected async getPrompt():Promise<string>{
+    if(!this.prompt){
+      const rows = await this._execOnD1<{ prompt: string }>("SELECT prompt FROM cf_ai_chat_coach WHERE id = ?", [this.aid]);
+      if(rows && rows.length > 0){
+        this.prompt = rows[0].prompt;
+        return this.prompt;
+      }
+    }
+    return this.prompt || "";
+  }  
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
     // Load messages and automatically transform them to v5 format
