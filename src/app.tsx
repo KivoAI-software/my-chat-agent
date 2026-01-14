@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useAgent } from "agents/react";
 import { isStaticToolUIPart } from "ai";
-import { useAgentChat } from "@cloudflare/ai-chat/react";
+import { useAgentChat } from "./ai-chat/react";
 import type { UIMessage } from "@ai-sdk/react";
 import type { tools } from "./tools";
 
