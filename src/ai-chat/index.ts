@@ -248,7 +248,7 @@ export class AIChatAgent<
    * - For read operations (queries starting with SELECT), it returns the D1
    *   query results as an array. Callers can optionally await this.
    */
-  protected async _execOnD1<T = unknown>(
+  protected async _execOnD1<T = Record<string, string | number | boolean | null>>(
     sql: string,
     params: unknown[] = []
   ): Promise<T[] | undefined> {
@@ -832,12 +832,12 @@ export class AIChatAgent<
 
   private _loadMessagesFromDb(): ChatMessage[] {
     const rows =
-      this.sql`select * from cf_ai_chat_agent_messages order by created_at` ||
-      [];
+    (this._execOnD1<{
+      id: string;
+      message: string;
+      created_at: number;
+    }>("select * from cf_ai_chat_agent_messages order by created_at")) || [];
 
-    this._execOnD1(
-      "select * from cf_ai_chat_agent_messages order by created_at"
-    );
     return rows
       .map((row) => {
         try {
