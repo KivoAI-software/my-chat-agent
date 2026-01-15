@@ -6,6 +6,7 @@ export default defineWorkersConfig({
       keepProcessEnv: true
     }
   },
+  base: "/agents/",
   test: {
     // https://github.com/cloudflare/workers-sdk/issues/9822
     deps: {
