@@ -110,7 +110,6 @@ export class Chat extends AIChatAgent<Env> {
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
-
     if (url.pathname === "/agents/check-open-ai-key") {
       const hasGoogleKey = !!env.GOOGLE_API_KEY;
       return Response.json({
