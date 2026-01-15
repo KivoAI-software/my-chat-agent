@@ -436,7 +436,7 @@ export default function Chat() {
   );
 }
 
-const hasOpenAiKeyPromise = fetch("/check-open-ai-key").then((res) =>
+const hasOpenAiKeyPromise = fetch("/agents/check-open-ai-key").then((res) =>
   res.json<{ success: boolean }>()
 );
 
