@@ -13,9 +13,10 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+//import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
+import { createWorkersAI } from 'workers-ai-provider';
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
@@ -27,20 +28,19 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // Get Gemini API key from environment
+    const workersai = createWorkersAI({ binding: this.env.AI });
+    const model = workersai("@cf/ibm-granite/granite-4.0-h-micro");
+    //const model = workersai("models/gemini-1.5-pro");    
+    /*
     const apiKey = this.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error("GOOGLE_API_KEY is not set in environment variables");
     }
-
-    // Create Google AI SDK instance
     const google = createGoogleGenerativeAI({
       apiKey: apiKey,
     });
-
-    // Use Gemini 2.0 Flash model
     const model = google('models/gemini-2.0-flash-exp');
-
+    */
     // Collect all tools, including MCP tools
     const allTools = {
       ...tools,
