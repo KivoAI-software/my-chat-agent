@@ -111,7 +111,7 @@ export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/check-open-ai-key") {
+    if (url.pathname === "/check-ai-key") {
       const hasGoogleKey = !!env.GOOGLE_API_KEY;
       return Response.json({
         success: hasGoogleKey
