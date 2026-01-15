@@ -122,11 +122,25 @@ export default {
         "GOOGLE_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret put GOOGLE_API_KEY` to upload it to production"
       );
     }
+    // Handle requests under /agents path for UI and static assets
+    if (url.pathname.startsWith('/agents')) {
+      // Remove /agents prefix and route to agent
+      const modifiedUrl = new URL(request.url);
+      modifiedUrl.pathname = url.pathname.replace(/^\/agents/, '') || '/';
+      
+      const modifiedRequest = new Request(modifiedUrl, request);
+      const agentResponse = await routeAgentRequest(modifiedRequest, env);
+      
+      if (agentResponse) {
+        return agentResponse;
+      }
+    }
     
-    return (
-      // Route the request to our agent or return 404 if not found
-      (await routeAgentRequest(request, env)) ||
-      new Response("Not found", { status: 404 })
-    );
+    // Redirect root to /agents
+    if (url.pathname === '/' || url.pathname === '') {
+      return Response.redirect(new URL('/agents', url.origin), 302);
+    }
+    
+    return new Response("Not found", { status: 404 });
   }
 } satisfies ExportedHandler<Env>;
