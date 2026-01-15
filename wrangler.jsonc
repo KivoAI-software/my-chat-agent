@@ -15,7 +15,7 @@
 		"remote": true
 	},
 	"assets": {
-		"directory": "public"
+		"directory": "dist/client"
 	},
 	"d1_databases": [
 		{
