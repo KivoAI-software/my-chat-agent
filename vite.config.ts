@@ -5,6 +5,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  base: "/agents/",
   plugins: [cloudflare(), react(), tailwindcss()],
   resolve: {
     alias: {
