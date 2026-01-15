@@ -11,11 +11,10 @@
 		"nodejs_compat"
 	],
 	"ai": {
-		"binding": "AI",
-		"remote": true
+		"binding": "AI"
 	},
 	"assets": {
-		"directory": "dist/client"
+		"directory": "public"
 	},
 	"d1_databases": [
 		{

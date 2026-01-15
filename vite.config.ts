@@ -4,12 +4,7 @@ import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 
-export default defineConfig({
-  base: "/agents/",
-  build: {
-    outDir: "dist/client/agents", 
-    emptyOutDir: true, 
-  },
+export default defineConfig({ 
   plugins: [cloudflare(), react(), tailwindcss()],
   resolve: {
     alias: {

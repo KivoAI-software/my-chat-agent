@@ -1,11 +1,6 @@
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
-export default defineWorkersConfig({
-  base: "/agents/",
-  build: {
-    outDir: "dist/client/agents", 
-    emptyOutDir: true, 
-  },
+export default defineWorkersConfig({  
   environments: {
     ssr: {
       keepProcessEnv: true
