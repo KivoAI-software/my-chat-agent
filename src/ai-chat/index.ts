@@ -843,7 +843,7 @@ export class AIChatAgent<
       if (chatIndex !== -1 && pathSegments.length > chatIndex + 1) {
         const idsSegment = pathSegments[chatIndex + 1];
         const ids = idsSegment.split('-');
-        if (ids.length === 3) {
+        if (ids.length === 3 || ids.length === 2) {
           this.pid = ids[0] || "0";
           this.aid = ids[1] || "0";
           this.vid = ids[2] || "0";
