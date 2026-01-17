@@ -295,11 +295,54 @@ export class AIChatAgent<
       const rows = await this._execOnD1<{ prompt: string }>("SELECT prompt FROM cf_ai_chat_coach WHERE id = ?", [this.aid]);
       if(rows && rows.length > 0){
         this.prompt = rows[0].prompt;
-        return this.prompt;
       }
     }
-    return this.prompt || "";
-  }  
+    const base = this.prompt || "";
+    try {
+      const memories = await this._loadMemories();
+      if (memories.length > 0) {
+        return `${base}\n\n[Long-term Memory]\nThe following facts/preferences are recalled about the user or context:\n${memories.map(m => `- ${m}`).join("\n")}\n[End Memory]\n`;
+      }
+    } catch (e) {
+      console.warn("Failed to load memories", e);
+    }
+    return base;
+  } 
+
+  private _memoryTableEnsured = false;
+
+  async addMemory(content: string) {
+     await this._ensureMemoryTable();
+     const id = nanoid();
+     await this._execOnD1(
+       "INSERT INTO cf_ai_chat_memory (id, pid, aid, vid, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+       [id, this.pid, this.aid, this.vid, content, Date.now()]
+     );
+  }
+
+  async _loadMemories(): Promise<string[]> {
+     await this._ensureMemoryTable();
+     const rows = await this._execOnD1<{ content: string }>(
+       "SELECT content FROM cf_ai_chat_memory WHERE pid = ? AND aid = ? AND vid = ? ORDER BY created_at DESC LIMIT 50",
+       [this.pid, this.aid, this.vid]
+     );
+     return rows ? rows.map(r => r.content) : [];
+  }
+
+  async _ensureMemoryTable() {
+     if (this._memoryTableEnsured) return;
+     await this._execOnD1(`
+       CREATE TABLE IF NOT EXISTS cf_ai_chat_memory (
+         id TEXT PRIMARY KEY,
+         pid TEXT,
+         aid TEXT,
+         vid TEXT,
+         content TEXT,
+         created_at INTEGER
+       )
+     `);
+     this._memoryTableEnsured = true;
+  }
   constructor(ctx: AgentContext, env: Env) {
     super(ctx, env);
     // Load messages and automatically transform them to v5 format
