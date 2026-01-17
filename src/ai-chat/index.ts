@@ -317,7 +317,7 @@ export class AIChatAgent<
      );
   }
 
-  async _loadMemories(): Promise<string[]> {
+  async _loadMemories(): Promise<string[]> {     
      const rows = await this._execOnD1<{ content: string }>(
        "SELECT content FROM cf_ai_chat_memory WHERE pid = ? AND aid = ? AND vid = ? ORDER BY created_at DESC LIMIT 50",
        [this.pid, this.aid, this.vid]
