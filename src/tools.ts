@@ -108,18 +108,6 @@ const cancelScheduledTask = tool({
   }
 });
 
-const rememberThis = tool({
-  description: "Save important information, facts, or user preferences into long-term memory for future reference. Use this when the user explicitly asks you to remember something, or when you detect a key fact that should be persisted (e.g., user's name, hobbies, specific constraints).",
-  inputSchema: z.object({
-    content: z.string().describe("The fact or information to remember. Be concise.")
-  }),
-  execute: async ({ content }) => {
-    const { agent } = getCurrentAgent<Chat>();
-    await agent!.addMemory(content);
-    return "Memory saved.";
-  }
-});
-
 /**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
@@ -129,8 +117,7 @@ export const tools = {
   getLocalTime,
   scheduleTask,
   getScheduledTasks,
-  cancelScheduledTask,
-  rememberThis
+  cancelScheduledTask
 } satisfies ToolSet;
 
 /**

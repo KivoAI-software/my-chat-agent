@@ -73,11 +73,11 @@ export class Chat extends AIChatAgent<Env> {
               });
               
               if (text) {
-                // Save to long-term memory
-                await this.addMemory(`[Archived Conversation]: ${text}`);
+                // Get the ID of the last message in this batch (checkpoint)
+                const lastMsgId = oldestMessages[oldestMessages.length - 1].id;
                 
-                // Delete the raw messages from DB
-                await this.deleteMessages(idsToDelete);
+                // Save to long-term memory with the checkpoint mid
+                await this.addMemory(`[Archived Conversation]: ${text}`, lastMsgId);
                 
                 // Update local inputs so the current inference only sees the remaining
                 this.messages = this.messages.slice(SUMMARY_BATCH_SIZE);

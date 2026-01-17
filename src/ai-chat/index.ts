@@ -309,11 +309,11 @@ export class AIChatAgent<
     return base;
   }
 
-  async addMemory(content: string) {     
+  async addMemory(content: string, mid?: string) {     
      const id = nanoid();
      await this._execOnD1(
-       "INSERT INTO cf_ai_chat_memory (id, pid, aid, vid, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-       [id, this.pid, this.aid, this.vid, content, Date.now()]
+       "INSERT INTO cf_ai_chat_memory (id, pid, aid, vid, content, mid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+       [id, this.pid, this.aid, this.vid, content, mid, Date.now()]
      );
   }
 
@@ -843,12 +843,35 @@ export class AIChatAgent<
   }
 
   private async _loadMessagesFromDb(): Promise<ChatMessage[]> {
+    // First, find the most recent summary's mid (message ID checkpoint)
+    const latestSummary = await this._execOnD1<{ mid: string }>(
+      "SELECT mid FROM cf_ai_chat_memory WHERE pid = ? AND aid = ? AND vid = ? AND mid IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+      [this.pid, this.aid, this.vid]
+    );
+
+    let whereClause = "where pid = ? and aid = ? and vid = ?";
+    const params: unknown[] = [this.pid, this.aid, this.vid];
+
+    // If we have a summary checkpoint, only load messages after that point
+    if (latestSummary && latestSummary.length > 0 && latestSummary[0].mid) {
+      // Find the created_at timestamp of the checkpoint message
+      const checkpoint = await this._execOnD1<{ created_at: number }>(
+        "SELECT created_at FROM cf_ai_chat_agent_messages WHERE id = ? AND pid = ? AND aid = ? AND vid = ?",
+        [latestSummary[0].mid, this.pid, this.aid, this.vid]
+      );
+      
+      if (checkpoint && checkpoint.length > 0) {
+        whereClause += " and created_at > ?";
+        params.push(checkpoint[0].created_at);
+      }
+    }
+
     const rows =
       (await this._execOnD1<{
         id: string;
         message: string;
         created_at: number;
-      }>(`select * from cf_ai_chat_agent_messages where pid = ? and aid = ? and vid = ? order by created_at`, [this.pid, this.aid, this.vid])) || [];
+      }>(`select * from cf_ai_chat_agent_messages ${whereClause} order by created_at`, params)) || [];
 
     return rows
       .map((row) => {
