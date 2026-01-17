@@ -73,11 +73,12 @@ export class Chat extends AIChatAgent<Env> {
               });
               
               if (text) {
-                // Get the ID of the last message in this batch (checkpoint)
+                // Get the ID of the first and last message in this batch
+                const firstMsgId = oldestMessages[0].id;
                 const lastMsgId = oldestMessages[oldestMessages.length - 1].id;
                 
-                // Save to long-term memory with the checkpoint mid
-                await this.addMemory(`[Archived Conversation]: ${text}`, lastMsgId);
+                // Save to long-term memory with the checkpoint emid (last) and smid (first)
+                await this.addMemory(`[Archived Conversation]: ${text}`, lastMsgId, firstMsgId);
                 
                 // Update local inputs so the current inference only sees the remaining
                 this.messages = this.messages.slice(SUMMARY_BATCH_SIZE);

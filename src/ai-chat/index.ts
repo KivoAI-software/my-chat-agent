@@ -309,11 +309,11 @@ export class AIChatAgent<
     return base;
   }
 
-  async addMemory(content: string, mid?: string) {     
+  async addMemory(content: string, emid?: string, smid?: string) {     
      const id = nanoid();
      await this._execOnD1(
-       "INSERT INTO cf_ai_chat_memory (id, pid, aid, vid, content, mid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-       [id, this.pid, this.aid, this.vid, content, mid, Date.now()]
+       "INSERT INTO cf_ai_chat_memory (id, pid, aid, vid, content, emid, smid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+       [id, this.pid, this.aid, this.vid, content, emid || null, smid || null, Date.now()]
      );
   }
 
@@ -843,9 +843,9 @@ export class AIChatAgent<
   }
 
   private async _loadMessagesFromDb(): Promise<ChatMessage[]> {
-    // First, find the most recent summary's mid (message ID checkpoint)
-    const latestSummary = await this._execOnD1<{ mid: string }>(
-      "SELECT mid FROM cf_ai_chat_memory WHERE pid = ? AND aid = ? AND vid = ? AND mid IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+    // First, find the most recent summary's emid (message ID checkpoint)
+    const latestSummary = await this._execOnD1<{ emid: string }>(
+      "SELECT emid FROM cf_ai_chat_memory WHERE pid = ? AND aid = ? AND vid = ? AND emid IS NOT NULL ORDER BY created_at DESC LIMIT 1",
       [this.pid, this.aid, this.vid]
     );
 
@@ -853,11 +853,11 @@ export class AIChatAgent<
     const params: unknown[] = [this.pid, this.aid, this.vid];
 
     // If we have a summary checkpoint, only load messages after that point
-    if (latestSummary && latestSummary.length > 0 && latestSummary[0].mid) {
+    if (latestSummary && latestSummary.length > 0 && latestSummary[0].emid) {
       // Find the created_at timestamp of the checkpoint message
       const checkpoint = await this._execOnD1<{ created_at: number }>(
         "SELECT created_at FROM cf_ai_chat_agent_messages WHERE id = ? AND pid = ? AND aid = ? AND vid = ?",
-        [latestSummary[0].mid, this.pid, this.aid, this.vid]
+        [latestSummary[0].emid, this.pid, this.aid, this.vid]
       );
       
       if (checkpoint && checkpoint.length > 0) {
