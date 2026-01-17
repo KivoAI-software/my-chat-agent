@@ -29,7 +29,8 @@ export class Chat extends AIChatAgent<Env> {
     _options?: { abortSignal?: AbortSignal }
   ) {
     const workersai = createWorkersAI({ binding: this.env.AI });
-    const model = workersai("@cf/ibm-granite/granite-4.0-h-micro");
+    const model = workersai("@cf/meta/llama-3-8b-instruct");
+
     //const model = workersai("models/gemini-1.5-pro");    
     /*
     const apiKey = this.env.GOOGLE_API_KEY;
