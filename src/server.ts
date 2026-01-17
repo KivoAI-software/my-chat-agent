@@ -53,8 +53,8 @@ export class Chat extends AIChatAgent<Env> {
       execute: async ({ writer }) => {
         // Auto-summarization logic
         // Rule: If total messages >= 30, keep recent 20, summarize the oldest batch (e.g. 10), and delete them from raw storage.
-        const KEEP_RECENT = 20;
-        const SUMMARY_BATCH_SIZE = 10;
+        const KEEP_RECENT = 8;
+        const SUMMARY_BATCH_SIZE = 4;
         
         // Loop in case we have a huge backlog (e.g. 50 messages -> summarize 30)
         // Check if we have enough messages to trigger a summary (at least KEEP_RECENT + SUMMARY_BATCH_SIZE)
