@@ -445,8 +445,8 @@ export class AIChatAgent<
         if (data.type === MessageType.CF_AGENT_CHAT_CLEAR) {
           this._destroyAbortControllers();
           await this._execOnD1("delete from cf_ai_chat_agent_messages where pid = ? and aid=? and vid=?", [this.pid, this.aid, this.vid]);          
-          await this._execOnD1("delete from cf_ai_chat_stream_chunks");
-          await this._execOnD1("delete from cf_ai_chat_stream_metadata");
+          await this._execOnD1("delete from cf_ai_chat_stream_chunks where pid = ? and aid=? and vid=?", [this.pid, this.aid, this.vid]);
+          await this._execOnD1("delete from cf_ai_chat_stream_metadata where pid = ? and aid=? and vid=?", [this.pid, this.aid, this.vid]);
           this._activeStreamId = null;
           this._activeRequestId = null;
           this._streamChunkIndex = 0;
@@ -580,7 +580,8 @@ export class AIChatAgent<
    */
   protected async _restoreActiveStream() {
     const activeStreams = await this._execOnD1<StreamMetadata>(
-      "select * from cf_ai_chat_stream_metadata where status = 'streaming' order by created_at desc limit 1"
+      "select * from cf_ai_chat_stream_metadata where status = 'streaming' and pid = ? and aid = ? and vid = ? order by created_at desc limit 1",
+      [this.pid, this.aid, this.vid]
     );
 
     if (activeStreams && activeStreams.length > 0) {
@@ -590,12 +591,12 @@ export class AIChatAgent<
       // Check if stream is stale; delete to free storage
       if (streamAge > STREAM_STALE_THRESHOLD_MS) {
         await this._execOnD1(
-          "delete from cf_ai_chat_stream_chunks where stream_id = ?",
-          [stream.id]
+          "delete from cf_ai_chat_stream_chunks where stream_id = ? and pid = ? and aid = ? and vid = ?",
+          [stream.id, this.pid, this.aid, this.vid]
         );
         await this._execOnD1(
-          "delete from cf_ai_chat_stream_metadata where id = ?",
-          [stream.id]
+          "delete from cf_ai_chat_stream_metadata where id = ? and pid = ? and aid = ? and vid = ?",
+          [stream.id, this.pid, this.aid, this.vid]
         );
         console.warn(
           `[AIChatAgent] Deleted stale stream ${stream.id} (age: ${Math.round(streamAge / 1000)}s)`
@@ -608,8 +609,8 @@ export class AIChatAgent<
 
       // Get the last chunk index
       const lastChunk = await this._execOnD1<{ max_index: number }>(
-        "select max(chunk_index) as max_index from cf_ai_chat_stream_chunks where stream_id = ?",
-        [this._activeStreamId]
+        "select max(chunk_index) as max_index from cf_ai_chat_stream_chunks where stream_id = ? and pid = ? and aid = ? and vid = ?",
+        [this._activeStreamId, this.pid, this.aid, this.vid]
       );
       this._streamChunkIndex =
         lastChunk && lastChunk[0]?.max_index != null
@@ -653,8 +654,8 @@ export class AIChatAgent<
     this._flushChunkBuffer();
 
     const chunks = await this._execOnD1<StreamChunk>(
-      "select * from cf_ai_chat_stream_chunks where stream_id = ? order by chunk_index asc",
-      [streamId]
+      "select * from cf_ai_chat_stream_chunks where stream_id = ? and pid = ? and aid = ? and vid = ? order by chunk_index asc",
+      [streamId, this.pid, this.aid, this.vid]
     );
 
     // Send all stored chunks
@@ -730,8 +731,8 @@ export class AIChatAgent<
       for (const chunk of chunks) {
         // Fire-and-forget logic for buffer flushing to avoid blocking loops
         this._execOnD1(
-          "insert into cf_ai_chat_stream_chunks (id, stream_id, body, chunk_index, created_at) values (?, ?, ?, ?, ?)",
-          [chunk.id, chunk.streamId, chunk.body, chunk.index, now]
+          "insert into cf_ai_chat_stream_chunks (id, stream_id, body, chunk_index, created_at, pid, aid, vid) values (?, ?, ?, ?, ?, ?, ?, ?)",
+          [chunk.id, chunk.streamId, chunk.body, chunk.index, now, this.pid, this.aid, this.vid]
         ).catch((err) => {
           console.error("[AIChatAgent] Failed to flush chunk", err);
         });
@@ -760,8 +761,8 @@ export class AIChatAgent<
     const createdAt = Date.now();
 
     this._execOnD1(
-      "insert into cf_ai_chat_stream_metadata (id, request_id, status, created_at) values (?, ?, 'streaming', ?)",
-      [streamId, requestId, createdAt]
+      "insert into cf_ai_chat_stream_metadata (id, request_id, status, created_at, pid, aid, vid) values (?, ?, 'streaming', ?, ?, ?, ?)",
+      [streamId, requestId, createdAt, this.pid, this.aid, this.vid]
     );
 
     return streamId;
@@ -779,8 +780,8 @@ export class AIChatAgent<
     const completedAt = Date.now();
 
     this._execOnD1(
-      "update cf_ai_chat_stream_metadata set status = 'completed', completed_at = ? where id = ?",
-      [completedAt, streamId]
+      "update cf_ai_chat_stream_metadata set status = 'completed', completed_at = ? where id = ? and pid = ? and aid = ? and vid = ?",
+      [completedAt, streamId, this.pid, this.aid, this.vid]
     );
     this._activeStreamId = null;
     this._activeRequestId = null;
@@ -804,12 +805,12 @@ export class AIChatAgent<
     const cutoff = now - CLEANUP_AGE_THRESHOLD_MS;
 
     this._execOnD1(
-      "delete from cf_ai_chat_stream_chunks where stream_id in (select id from cf_ai_chat_stream_metadata where status = 'completed' and completed_at < ?)",
-      [cutoff]
+      "delete from cf_ai_chat_stream_chunks where stream_id in (select id from cf_ai_chat_stream_metadata where status = 'completed' and completed_at < ? and pid = ? and aid = ? and vid = ?) and pid = ? and aid = ? and vid = ?",
+      [cutoff, this.pid, this.aid, this.vid, this.pid, this.aid, this.vid]
     );
     this._execOnD1(
-      "delete from cf_ai_chat_stream_metadata where status = 'completed' and completed_at < ?",
-      [cutoff]
+      "delete from cf_ai_chat_stream_metadata where status = 'completed' and completed_at < ? and pid = ? and aid = ? and vid = ?",
+      [cutoff, this.pid, this.aid, this.vid]
     );
   }
 
@@ -2065,8 +2066,8 @@ export class AIChatAgent<
 
     const completedAt = Date.now();
     this._execOnD1(
-      "update cf_ai_chat_stream_metadata set status = 'error', completed_at = ? where id = ?",
-      [completedAt, streamId]
+      "update cf_ai_chat_stream_metadata set status = 'error', completed_at = ? where id = ? and pid = ? and aid = ? and vid = ?",
+      [completedAt, streamId, this.pid, this.aid, this.vid]
     );
     this._activeStreamId = null;
     this._activeRequestId = null;
@@ -2127,10 +2128,6 @@ export class AIChatAgent<
 
     // Flush any remaining chunks before cleanup
     this._flushChunkBuffer();
-
-    // Clean up stream tables
-    await this._execOnD1("drop table if exists cf_ai_chat_stream_chunks");
-    await this._execOnD1("drop table if exists cf_ai_chat_stream_metadata");
 
     // Clear active stream state
     this._activeStreamId = null;
