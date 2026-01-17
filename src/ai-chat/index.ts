@@ -2078,7 +2078,14 @@ export class AIChatAgent<
       }
     });
   }
-
+ protected async deleteMessages(ids: string[]) {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => "?").join(",");
+    await this._execOnD1(
+      `DELETE FROM cf_ai_chat_agent_messages WHERE id IN (${placeholders}) AND pid = ? AND aid = ? AND vid = ?`,
+      [...ids, this.pid, this.aid, this.vid]
+    );
+  }
   /**
    * Mark a stream as errored and clean up state.
    * @param streamId - The stream to mark as errored

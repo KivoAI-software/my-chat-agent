@@ -6,6 +6,7 @@ import { AIChatAgent } from "./ai-chat";
 import {
   generateId,
   streamText,
+  generateText,
   type StreamTextOnFinishCallback,
   stepCountIs,
   createUIMessageStream,
@@ -50,6 +51,45 @@ export class Chat extends AIChatAgent<Env> {
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
+        // Auto-summarization logic
+        // Rule: If total messages >= 30, keep recent 20, summarize the oldest batch (e.g. 10), and delete them from raw storage.
+        const KEEP_RECENT = 20;
+        const SUMMARY_BATCH_SIZE = 10;
+        
+        // Loop in case we have a huge backlog (e.g. 50 messages -> summarize 30)
+        // Check if we have enough messages to trigger a summary (at least KEEP_RECENT + SUMMARY_BATCH_SIZE)
+        while (this.messages.length >= KEEP_RECENT + SUMMARY_BATCH_SIZE) {
+            const oldestMessages = this.messages.slice(0, SUMMARY_BATCH_SIZE);
+            const idsToDelete = oldestMessages.map(m => m.id);
+            
+            try {
+              // Generate summary
+              const modelMessages = await convertToModelMessages(oldestMessages);
+              const { text } = await generateText({
+                model, 
+                // prompt to summarize the conversation chunk
+                system: "You are an expert summarizer. Summarize the following conversation segment concisely, preserving key facts, user preferences, and decisions. This summary will be stored in long-term memory to maintain context.",
+                messages: modelMessages
+              });
+              
+              if (text) {
+                // Save to long-term memory
+                await this.addMemory(`[Archived Conversation]: ${text}`);
+                
+                // Delete the raw messages from DB
+                await this.deleteMessages(idsToDelete);
+                
+                // Update local inputs so the current inference only sees the remaining
+                this.messages = this.messages.slice(SUMMARY_BATCH_SIZE);
+              } else {
+                break; // Safety break if generation fails
+              }
+            } catch (err) {
+              console.error("Auto-summarization failed", err);
+              break;
+            }
+        }
+
         // Clean up incomplete tool calls to prevent API errors
         const cleanedMessages = cleanupMessages(this.messages);
 
@@ -76,7 +116,7 @@ export class Chat extends AIChatAgent<Env> {
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<
             typeof allTools
           >,
-          stopWhen: stepCountIs(10)
+          stopWhen: stepCountIs(150)
         });
 
         writer.merge(result.toUIMessageStream());
